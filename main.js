@@ -42,8 +42,8 @@ async function testKeytar() {
 app.on('ready', () => {
   // Handle IPC messages from the renderer process.
   ipcMain.handle('auth:get-profile', authService.getProfile);
-  ipcMain.on('auth:go-auth-url', () => {
-    goAuthUrl();
+  ipcMain.on('auth:go-auth-url', async () => {
+    await goAuthUrl();
   });
   ipcMain.handle('api:get-private-data', apiService.getPrivateData);
   ipcMain.on('auth:log-out', () => {

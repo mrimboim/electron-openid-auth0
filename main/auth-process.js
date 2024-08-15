@@ -61,10 +61,11 @@ function createAuthWindow() {
   });
 }
 
-function goAuthUrl() {
+async function goAuthUrl() {
   try {
     console.log("IN go auth function")
-    shell.openExternal(authService.getAuthenticationURL())
+    const auth_url = await authService.getAuthenticationURL();
+    shell.openExternal(auth_url)
   } catch (error) {
     console.error("Could not open AuthLogin:", error)
   }
