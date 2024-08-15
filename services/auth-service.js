@@ -24,8 +24,21 @@ function getAccessToken() {
   return accessToken;
 }
 
-function getProfile() {
-  return profile;
+async function getProfile() {
+  const options = {
+    method: 'GET',
+    url: `https://api.descope.com/v1/auth/me`,
+    headers: {
+      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`
+    },
+  };
+  const response = await axios(options);
+
+  console.log("\n @@@ME@@@: \n",response,"\n")
+  const name = response.data.name
+  const picture = response.data.picture
+  profileInfo = {name:name, picture:picture}
+  return profileInfo
 }
 
 async function getAuthenticationURL() {
