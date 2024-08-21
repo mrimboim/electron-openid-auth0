@@ -1,5 +1,5 @@
 {
-  "name": "electron-openid-oauth-2",
+  "name": "descript-sample-app",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "axios": "^1.7.4",
+    "electron-settings": "^4.0.4",
     "electron-squirrel-startup": "^1.0.1",
     "jwt-decode": "^4.0.0",
     "keytar": "^7.9.0"

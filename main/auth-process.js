@@ -14,6 +14,7 @@ function createAuthWindow() {
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
+      enableRemoteModule: true,
       
       // Might need to remove these becuase we will be talking to main 
       enableRemoteModule: false
@@ -50,6 +51,7 @@ function createAuthWindow() {
     await authService.loadTokens(url);
     createAppWindow();
     destroyAuthWin();
+    
   });
 
   win.on('authenticated', () => {
@@ -63,11 +65,11 @@ function createAuthWindow() {
 
 async function goAuthUrl() {
   try {
-    console.log("IN go auth function")
+    // console.log("IN go auth function")
     const auth_url = await authService.getAuthenticationURL();
     shell.openExternal(auth_url)
   } catch (error) {
-    console.error("Could not open AuthLogin:", error)
+    // console.error("Could not open AuthLogin:", error)
   }
 }
 
@@ -83,9 +85,11 @@ function createLogoutWindow() {
   });
 
   // #TODO: might need to be changed to an external as well but might be ok?
+  // authService.logout()
   logoutWindow.loadURL(authService.getLogOutUrl());
 
   logoutWindow.on('ready-to-show', async () => {
+    createAuthWindow();
     await authService.logout();
     logoutWindow.close();
   });
