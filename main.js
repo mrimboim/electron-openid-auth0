@@ -1,4 +1,4 @@
-const { app, ipcMain, BrowserWindow, protocol, net, shell, dialog,safeStorage} = require('electron');
+const { app, ipcMain, BrowserWindow, protocol, net, shell, dialog, safeStorage } = require('electron');
 const path = require('node:path')
 const { createAuthWindow, createLogoutWindow, goAuthUrl } = require('./main/auth-process');
 const createAppWindow = require('./main/app-process');
@@ -6,6 +6,7 @@ const authService = require('./services/auth-service');
 const apiService = require('./services/api-service');
 const keytar = require('keytar');
 const os = require('os');
+const settings = require('electron-settings');
 
 
 
@@ -32,40 +33,20 @@ async function showWindow() {
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
   // Handle IPC messages from the renderer process.
-  (() => {console.log("\n IS ENCRYPTION AVAILABLE:", safeStorage.isEncryptionAvailable())})();
-  (async () => {
-
-    encrypted_Refresh = safeStorage.encryptString('AppleSnappleMapple')
-
-    try {
-      await settings.set('DSR', encrypted_Refresh);
-    } catch (error) {
-      console.log(`\nError from setRefresh:${error}\n`)
-    }
-  });
-  //   const keytarService = 'electron-openid-oauth';
-  //   const keytarAccount = os.userInfo().username;
-
-  //   try {
-  //     await keytar.setPassword(keytarService, keytarAccount, "lol");
-  //   } catch (error) {
-  //     console.log('\n Failed to save token(MAIN):', error);
-  //   }
-
-  //   try {
-  //     const test = await keytar.getPassword(keytarService, keytarAccount);
-  //     console.log(`Test from keytar value: ${test}`);
-  //   } catch (error) {
-  //     console.log('\nFailed to get saved keychain token(MAIN):', error);
-  //   }
-  // })();
-
   ipcMain.handle('auth:get-profile', authService.getProfile);
   ipcMain.on('auth:go-auth-url', async () => {
     await goAuthUrl();
   });
   ipcMain.on('auth:validate', async () => {
     const valid = await authService.validateSession();
+    authService.getStored("refresh")
+    .then((token) => {
+      console.log("Decrypted token:", token);
+  })
+  authService.getStored("access")
+    .then((token) => {
+      console.log("Decrypted token:", token);
+  })
     if (!valid) {
       BrowserWindow.getAllWindows().forEach(window => window.close());
       createLogoutWindow();

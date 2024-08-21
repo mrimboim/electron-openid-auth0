@@ -5,17 +5,12 @@ const envVariables = require('../env-variables');
 const keytar = require('keytar');
 const os = require('os');
 const settings = require('electron-settings');
-const electron = require('electron')
+const {safeStorage} = require('electron')
 
 
 const { apiIdentifier, auth0Domain, clientId, DESCOPE_PROJECT_ID } = envVariables;
 
 const redirectUri = 'electron://auth/';
-
-const keytarService = 'electron-openid-oauth';
-const keytarAccount = os.userInfo().username;
-// console.log("OS info", os.userInfo().username)
-
 
 let accessToken = null;
 let profile = null;
@@ -24,23 +19,21 @@ let id_token = null;
 
 let codeVerifier = null;
 
-// async function setRefresh(token){
-//   console.log("\n IS ENCRYPTION AVAILABLE:",electron.safeStorage.isEncryptionAvailable())
-//   encrypted_Refresh = electron.safeStorage.encryptString('AppleSnappleMapple')
 
-//   try{
-//     await settings.set('DSR', encrypted_Refresh);
-//   }catch(error){
-//     console.log(`\nError from setRefresh:${error}\n`)
-//   }
+async function storeToken(token_name, token) {
 
-// }
-// async function getRefresh(){
-//   const token = await settings.get('DSR')
-//   console.log("TOKEN FROM GET REFRESH:",token)
-//   console.log("Decrypted Token:",electron.safeStorage.decryptString(token))
+  console.log("\n Encryption Available:", safeStorage.isEncryptionAvailable());
+  encrypted_token = safeStorage.encryptString(token);
+  await settings.set(token_name,encrypted_token);
 
-// }
+}
+
+async function getStored(token_name) {
+  const token = await settings.get(token_name);
+  decrypted_token = safeStorage.decryptString(Buffer.from(token.data))
+  return decrypted_token
+}
+
 function getAccessToken() {
   return accessToken;
 }
@@ -57,7 +50,7 @@ async function getProfile() {
   };
   const response = await axios(options);
 
-  // console.log("\n @@@ME@@@: \n",response,"\n")
+
   const name = response.data.name
   const picture = response.data.picture
   profileInfo = { name: name, picture: picture }
@@ -101,33 +94,13 @@ async function refreshTokens() {
 }
 
 async function loadTokens(callbackURL) {
-  // await setRefresh();
-  // await getRefresh();
-  // try {
-  //   await keytar.setPassword(keytarService, keytarAccount, "lol");
-  // } catch (error) {
-  //   console.log('\nFailed to save token:', error);
-  // }
 
-  // try {
-  //   const test = await keytar.getPassword(keytarService, keytarAccount);
-  //   console.log(`Test from keytar value:${test}`)
-  // } catch (error) {
-  //   console.log('\n Failed to get saved keychain token:', error)
-  // }
-
-
-  // console.log("IN LOAD TOKEN WITH:",callbackURL)
   const urlParts = url.parse(callbackURL, true);
   const query = urlParts.query;
   const state = urlParts.state;
-  // console.log("code of query of url",query.code)
-  // console.log("state of query of url",query.state)
-
 
   let baseURL = "descript.auth-sample-app.com"
-  // const codeVerifier = generateCodeVerifier();
-  // const codeChallenge = await generateCodeChallenge(codeVerifier);
+  
   const exchangeOptions = {
     'grant_type': 'authorization_code',
     'client_id': DESCOPE_PROJECT_ID,
@@ -147,31 +120,14 @@ async function loadTokens(callbackURL) {
 
   try {
     const response = await axios(options);
-    // console.log("\n _____RESPONSE____-_-_-___ \n",response,"\n")
 
     accessToken = response.data.access_token;
     id_token = response.data.id_token;
     refreshToken = response.data.refresh_token;
-    // console.log("Access Token:", accessToken);
-    // console.log("Profile:", profile);
-    // console.log("Refresh Token:", refreshToken);
 
-    // #TODO: switch keytar for safe storage
-    // if (refreshToken) {
-    //   console.log("HOUSTON WE HAVE A TOKEN")
-
-    //   try{
-    //   await keytar.setPassword(keytarService, keytarAccount, refreshToken);
-    //   }catch(error){
-    //     console.error("Keytar Failed:", error)
-    //   }
-
-    //   console.log("after keyatr")
-    //   const refreshTokenGot = await keytar.getPassword(keytarService, keytarAccount);
-    //   console.log("refreshtokenfromkeytar:",refreshTokenGot)
-
-
-    // }
+    await storeToken("refresh",refreshToken)
+    await storeToken("access", accessToken)
+    
   } catch (error) {
     console.error("Error from Token part:", error, "\n")
     await logout();
@@ -212,15 +168,7 @@ async function validateSession() {
 }
 
 async function logout() {
-  // #TODO: Swithc keytar out for safe storage
-  // try{
-  //   await keytar.deletePassword(keytarService, keytarAccount);
-  // }catch(error){
-  //   print("KEYTAR NOT WORK LOGOUT")
-  // }
   let baseURL = "descript.auth-sample-app.com"
-  // const codeVerifier = generateCodeVerifier();
-  // const codeChallenge = await generateCodeChallenge(codeVerifier);
   const exchangeOptions = {
   };
 
@@ -229,7 +177,7 @@ async function logout() {
     url: `https://${baseURL}/v1/auth/logoutall`,
     headers: {
       'content-type': 'application/json',
-      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${refresh_token}`
+      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`
 
     },
     data: JSON.stringify(exchangeOptions),
@@ -237,7 +185,13 @@ async function logout() {
 
   try {
     const response = await axios(options);
-    // console.log("\n _____RESPONSE____-_-_-___ \n",response,"\n")
+    
+    await storeToken("access","")
+    await storeToken("refresh","")
+
+    accessToken = null;
+    profile = null;
+    refreshToken = null;
 
   } catch (error) {
     console.error("Error from Token part:", error, "\n")
@@ -248,15 +202,16 @@ async function logout() {
   }
 
 
-  accessToken = null;
-  profile = null;
-  refreshToken = null;
+ 
 }
 
+// TODO: erase and remove since we use the api to logout 
 function getLogOutUrl() {
 
 
-  return `https://api.descope.com/oauth2/v1/logout?id_token_hint=${id_token}`;
+  // return `https://api.descope.com/oauth2/v1/logout?id_token_hint=${id_token}`;
+  return `https://google.com`;
+
 }
 
 
@@ -311,6 +266,7 @@ module.exports = {
   loadTokens,
   logout,
   refreshTokens,
-  validateSession
+  validateSession,
+  getStored
 };
 
