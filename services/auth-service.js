@@ -1,16 +1,15 @@
-const { jwtDecode } = require('jwt-decode');
-const axios = require('axios');
-const url = require('url');
-const envVariables = require('../env-variables');
-const keytar = require('keytar');
-const os = require('os');
-const settings = require('electron-settings');
-const {safeStorage} = require('electron')
+const { jwtDecode } = require("jwt-decode");
+const axios = require("axios");
+const url = require("url");
+const envVariables = require("../env-variables");
+const os = require("os");
+const settings = require("electron-settings");
+const { safeStorage } = require("electron");
 
+const { apiIdentifier, auth0Domain, clientId, DESCOPE_PROJECT_ID } =
+  envVariables;
 
-const { apiIdentifier, auth0Domain, clientId, DESCOPE_PROJECT_ID } = envVariables;
-
-const redirectUri = 'electron://auth/';
+const redirectUri = "electron://auth/";
 
 let accessToken = null;
 let profile = null;
@@ -19,101 +18,109 @@ let id_token = null;
 
 let codeVerifier = null;
 
-
 async function storeToken(token_name, token) {
-
-  console.log("\n Encryption Available:", safeStorage.isEncryptionAvailable());
-  encrypted_token = safeStorage.encryptString(token);
-  await settings.set(token_name,encrypted_token);
-
+  const encrypted_token = safeStorage.encryptString(token);
+  await settings.set(token_name, encrypted_token);
+  console.log(`Token ${token_name} stored successfully.`);
 }
 
 async function getStored(token_name) {
   const token = await settings.get(token_name);
-  decrypted_token = safeStorage.decryptString(Buffer.from(token.data))
-  return decrypted_token
+  const decrypted_token = safeStorage.decryptString(Buffer.from(token.data));
+  console.log(`Token ${token_name} retrieved and decrypted.`);
+  return decrypted_token;
 }
 
 function getAccessToken() {
+  console.log("Access token requested.");
   return accessToken;
 }
 
 async function getProfile() {
-  while (!refreshToken) {
+  console.log("Fetching user profile...");
+  const refreshToken = await getStored("refresh");
+
+  if (refreshToken) {
+    console.log("Refresh token found. Fetching profile...");
+    const options = {
+      method: "GET",
+      url: `https://api.descope.com/v1/auth/me`,
+      headers: {
+        Authorization: `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`,
+      },
+    };
+
+    try{
+    const response = await axios(options);
+
+    const name = response.data.name;
+    const picture = response.data.picture;
+    const profileInfo = { name: name, picture: picture };
+    console.log("Profile fetched successfully:", profileInfo);
+    return profileInfo;
+    }catch(error){
+      console.error("Error during get profile axios:", error.response.data, error.config);
+      return null;
+    }
+
+  } else {
+    console.error("No available refresh token in getProfile.");
   }
-  const options = {
-    method: 'GET',
-    url: `https://api.descope.com/v1/auth/me`,
-    headers: {
-      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`
-    },
-  };
-  const response = await axios(options);
-
-
-  const name = response.data.name
-  const picture = response.data.picture
-  profileInfo = { name: name, picture: picture }
-  return profileInfo
-}
-
-async function getAuthenticationURL() {
-  const auth_url = await getAuthUrl();
-  return auth_url
 }
 
 async function refreshTokens() {
-
-  const refreshToken = await keytar.getPassword(keytarService, keytarAccount);
+  console.log("Refreshing tokens...");
+  const refreshToken = await getStored("refresh");
 
   if (refreshToken) {
+    console.log("Refresh token found. Refreshing access token...");
     const refreshOptions = {
-      method: 'POST',
-      url: `https://${auth0Domain}/oauth/token`,
-      headers: { 'content-type': 'application/json' },
-      data: {
-        grant_type: 'refresh_token',
-        client_id: clientId,
-        refresh_token: refreshToken,
-      }
+      method: "POST",
+      url: `https://api.descope.com/v1/auth/refresh`,
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`,
+      },
+      data: {},
     };
 
     try {
       const response = await axios(refreshOptions);
-
-      accessToken = response.data.access_token;
-      profile = jwtDecode(response.data.id_token);
+      accessToken = response.data.sessionJwt;
+      await storeToken("access", accessToken);
+      console.log("Access token refreshed successfully.");
     } catch (error) {
+      console.error("Error during token refresh:", error.data.response, error.config);
       await logout();
-
       throw error;
     }
   } else {
+    console.error("No available refresh token for refreshing tokens.");
     throw new Error("No available refresh token.");
   }
 }
 
 async function loadTokens(callbackURL) {
-
+  console.log("Loading tokens from callback URL:", callbackURL);
   const urlParts = url.parse(callbackURL, true);
   const query = urlParts.query;
   const state = urlParts.state;
 
-  let baseURL = "descript.auth-sample-app.com"
-  
+  let baseURL = "descript.auth-sample-app.com";
+
   const exchangeOptions = {
-    'grant_type': 'authorization_code',
-    'client_id': DESCOPE_PROJECT_ID,
-    'redirect_uri': redirectUri,
-    'code': query.code,
-    'code_verifier': codeVerifier
+    grant_type: "authorization_code",
+    client_id: DESCOPE_PROJECT_ID,
+    redirect_uri: redirectUri,
+    code: query.code,
+    code_verifier: codeVerifier,
   };
 
   const options = {
-    method: 'POST',
+    method: "POST",
     url: `https://${baseURL}/oauth2/v1/token`,
     headers: {
-      'content-type': 'application/json'
+      "content-type": "application/json",
     },
     data: JSON.stringify(exchangeOptions),
   };
@@ -124,28 +131,28 @@ async function loadTokens(callbackURL) {
     accessToken = response.data.access_token;
     id_token = response.data.id_token;
     refreshToken = response.data.refresh_token;
-
-    await storeToken("refresh",refreshToken)
-    await storeToken("access", accessToken)
-    
+    console.log(`access:${accessToken} \nrefresh:${refreshToken}`);
+    console.log("Tokens loaded successfully. Storing tokens...");
+    await storeToken("refresh", refreshToken);
+    await storeToken("access", accessToken);
   } catch (error) {
-    console.error("Error from Token part:", error, "\n")
+    console.error("Error during token exchange:", error.response.data, "\n \n" ,error.config);
     await logout();
-
-
     throw error;
   }
 }
+
 async function validateSession() {
+  console.log("Validating session...");
   let baseURL = "descript.auth-sample-app.com";
   const exchangeOptions = {};
 
   const options = {
-    method: 'POST',
+    method: "POST",
     url: `https://${baseURL}/v1/auth/validate`,
     headers: {
-      'content-type': 'application/json',
-      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${accessToken}`,
+      "content-type": "application/json",
+      Authorization: `Bearer ${DESCOPE_PROJECT_ID}:${accessToken}`,
     },
     data: JSON.stringify(exchangeOptions),
   };
@@ -153,120 +160,121 @@ async function validateSession() {
   try {
     const response = await axios(options);
 
-    // Check if the response status is 200
     if (response.status === 200) {
+      console.log("Session validated successfully.");
       return true;
-    } else {
-      return false;
     }
   } catch (error) {
-    console.error("Error from Token part:", error);
-    return false;
-
-    // Return false if there's an error or the status is not 200
+    console.warn("Session validation failed. Attempting to refresh tokens...");
+    try {
+      await refreshTokens();
+      console.log("Session refreshed successfully after validation failure.");
+      return true;
+    } catch (refreshError) {
+      console.error(
+        "Token refresh failed during session validation:",
+        error.response.data, error.config
+      );
+      return false;
+    }
   }
+
+  console.log("Session validation failed. Returning false.");
+  return false;
 }
 
 async function logout() {
-  let baseURL = "descript.auth-sample-app.com"
-  const exchangeOptions = {
-  };
+  const refreshToken = await getStored("refresh");
 
-  const options = {
-    method: 'POST',
-    url: `https://${baseURL}/v1/auth/logoutall`,
-    headers: {
-      'content-type': 'application/json',
-      'Authorization': `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`
+  console.log("Logging out...");
+  if (refreshToken) {
+    let baseURL = "descript.auth-sample-app.com";
+    const exchangeOptions = {};
 
-    },
-    data: JSON.stringify(exchangeOptions),
-  };
+    const options = {
+      method: "POST",
+      url: `https://${baseURL}/v1/auth/logoutall`,
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${DESCOPE_PROJECT_ID}:${refreshToken}`,
+      },
+      data: JSON.stringify(exchangeOptions),
+    };
 
-  try {
-    const response = await axios(options);
-    
-    await storeToken("access","")
-    await storeToken("refresh","")
-
-    accessToken = null;
-    profile = null;
-    refreshToken = null;
-
-  } catch (error) {
-    console.error("Error from Token part:", error, "\n")
-    await logout();
-
-
-    throw error;
+    try {
+      await axios(options);
+      console.log("Logout request sent successfully.");
+    } catch (error) {
+      console.error(
+        "Logout failed, possibly due to invalid or missing refresh token:",
+        error.response.data, error.config
+      );
+    }
   }
+  console.log("Clearing stored tokens...");
+  await storeToken("access", "");
+  await storeToken("refresh", "");
 
+  accessToken = null;
+  profile = null;
+  refreshToken = null;
 
- 
+  console.log("Logout completed.");
 }
-
-// TODO: erase and remove since we use the api to logout 
-function getLogOutUrl() {
-
-
-  // return `https://api.descope.com/oauth2/v1/logout?id_token_hint=${id_token}`;
-  return `https://google.com`;
-
-}
-
 
 function generateCodeVerifier() {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  console.log("Generating code verifier...");
+  let result = "";
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   const charactersLength = characters.length;
 
   for (let i = 0; i < 128; i++) {
     result += characters.charAt(Math.floor(Math.random() * charactersLength));
   }
 
+  console.log("Code verifier generated:", result);
   return result;
 }
 
-
-
 function generateCodeChallenge(verifier) {
-  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
-    .then(arrayBuffer => {
-      const base64Url = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
+  console.log("Generating code challenge from verifier:", verifier);
+  return crypto.subtle
+    .digest("SHA-256", new TextEncoder().encode(verifier))
+    .then((arrayBuffer) => {
+      const base64Url = btoa(
+        String.fromCharCode(...new Uint8Array(arrayBuffer))
+      )
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+      console.log("Code challenge generated:", base64Url);
       return base64Url;
     });
 }
 
-
-const getAuthUrl = async () => {
+const getAuthenticationURL = async () => {
+  console.log("Generating authentication URL...");
   codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
-  let baseURL = "descript.auth-sample-app.com"
+  let baseURL = "descript.auth-sample-app.com";
   if (DESCOPE_PROJECT_ID && DESCOPE_PROJECT_ID.length >= 32) {
-    const localURL = DESCOPE_PROJECT_ID.substring(1, 5)
-    baseURL = [baseURL.slice(0, 4), localURL, ".", baseURL.slice(4)].join('')
+    const localURL = DESCOPE_PROJECT_ID.substring(1, 5);
+    baseURL = [baseURL.slice(0, 4), localURL, ".", baseURL.slice(4)].join("");
   }
 
-
   const authUrl = `https://${baseURL}/oauth2/v1/authorize?response_type=code&client_id=${DESCOPE_PROJECT_ID}&redirect_uri=${redirectUri}&scope=openid&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${codeVerifier}`;
-  // console.log(authUrl);
-
+  console.log("Authentication URL generated:", authUrl);
   return authUrl;
-}
-
+};
 
 module.exports = {
   getAccessToken,
   getAuthenticationURL,
-  getLogOutUrl,
   getProfile,
   loadTokens,
   logout,
   refreshTokens,
   validateSession,
-  getStored
+  getStored,
 };
-

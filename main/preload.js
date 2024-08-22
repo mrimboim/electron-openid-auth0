@@ -5,7 +5,7 @@ const electronAPI = {
   getProfile: () => ipcRenderer.invoke('auth:get-profile'),
   goAuthPage: () => ipcRenderer.send('auth:go-auth-url'),
   logOut: () => ipcRenderer.send('auth:log-out'),
-  validate: () => ipcRenderer.send('auth:validate'),
+  validate: () => ipcRenderer.invoke('auth:validate'),
   getPrivateData: () => ipcRenderer.invoke('api:get-private-data'),
 };
 
