@@ -136,7 +136,7 @@ async function loadTokens(callbackURL) {
     await storeToken("refresh", refreshToken);
     await storeToken("access", accessToken);
   } catch (error) {
-    console.error("Error during token exchange:", error.response.data, "\n \n" ,error.config);
+    console.error("Error during token exchange:", error.response.data, "\n" ,error.config);
     await logout();
     throw error;
   }
@@ -253,7 +253,7 @@ function generateCodeChallenge(verifier) {
     });
 }
 
-const getAuthenticationURL = async () => {
+const getAuthenticationURL = async (flowParam) => {
   console.log("Generating authentication URL...");
   codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -262,8 +262,8 @@ const getAuthenticationURL = async () => {
     const localURL = DESCOPE_PROJECT_ID.substring(1, 5);
     baseURL = [baseURL.slice(0, 4), localURL, ".", baseURL.slice(4)].join("");
   }
-
-  const authUrl = `https://${baseURL}/oauth2/v1/authorize?response_type=code&client_id=${DESCOPE_PROJECT_ID}&redirect_uri=${redirectUri}&scope=openid&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${codeVerifier}`;
+  console.log("Here is flowParam:",flowParam)
+  const authUrl = `https://${baseURL}/oauth2/v1/authorize?response_type=code&client_id=${DESCOPE_PROJECT_ID}&redirect_uri=${redirectUri}&scope=openid&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${codeVerifier}&login_hint=${flowParam}`;
   console.log("Authentication URL generated:", authUrl);
   return authUrl;
 };

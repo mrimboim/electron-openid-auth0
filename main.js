@@ -58,8 +58,8 @@ async function onValidate() {
 app.on("ready", () => {
   // Handle IPC messages from the renderer process.
   ipcMain.handle("auth:get-profile", authService.getProfile);
-  ipcMain.on("auth:go-auth-url", async () => {
-    await goAuthUrl();
+  ipcMain.on("auth:go-auth-url", async (event, flowParam) => {
+    await goAuthUrl(flowParam);
   });
   ipcMain.handle("auth:validate", async () => {
     const valid = await authService.validateSession();

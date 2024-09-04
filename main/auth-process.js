@@ -36,10 +36,10 @@ function createAuthWindow() {
   });
 }
 
-async function goAuthUrl() {
+async function goAuthUrl(flowParam) {
   try {
     // console.log("IN go auth function")
-    const auth_url = await authService.getAuthenticationURL();
+    const auth_url = await authService.getAuthenticationURL(flowParam);
     shell.openExternal(auth_url)
   } catch (error) {
     // console.error("Could not open AuthLogin:", error)
@@ -53,7 +53,7 @@ function destroyAuthWin() {
 }
 
 function createLogoutWindow() {
-  
+
     createAuthWindow();
     authService.logout()
     .then()

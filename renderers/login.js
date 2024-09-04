@@ -4,7 +4,7 @@
 document.getElementById('signInButton').onclick = () => {
     try {
         // console.log("IN sign in button")
-        window.electronAPI.goAuthPage();
+        window.electronAPI.goAuthPage("sign-in");
 
         // Check if the message already exists
         if (!document.querySelector('.success-message')) {
@@ -26,7 +26,7 @@ document.getElementById('signInButton').onclick = () => {
 document.getElementById('createAccountButton').onclick = async () => {
     try {
         // console.log("IN sign in button")
-        window.electronAPI.goAuthPage();
+        window.electronAPI.goAuthPage("sign-up");
 
         // Check if the message already exists
         if (!document.querySelector('.success-message')) {
